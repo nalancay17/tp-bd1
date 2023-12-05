@@ -12,9 +12,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type consumo struct {
+	id           int
+	nrotarjeta   string
+	codseguridad string
+	nrocomercio  int
+	monto        float64
+}
+
 var dbCreada = true
 var tablasCreadas = false
 var instanciasAgregadas = false
+var spAutorizacionCompra = false
 
 const driverBaseDeDatos = "postgres"
 const nombreBaseDeDatos = "tp_bd1"
@@ -35,7 +44,9 @@ func main() {
 		fmt.Printf("1. Crear base de datos\n")
 		fmt.Printf("2. Crear tablas\n")
 		fmt.Printf("3. Agregar instancias\n")
-		fmt.Printf("4. Salir\n\n")
+		fmt.Printf("4. Agregar stored procedure\n")
+		fmt.Printf("5. Autorizar compras\n")
+		fmt.Printf("6. Salir\n\n")
 		fmt.Scanf("%s", &opcion)
 
 		if opcion == "1" {
@@ -51,6 +62,13 @@ func main() {
 			instanciasAgregadas = true
 			time.Sleep(1 * time.Second)
 		} else if opcion == "4" {
+			addAutorizacionCompraSp()
+			spAutorizacionCompra = true
+			time.Sleep(1 * time.Second)
+		} else if opcion == "5" {
+			autorizarCompras()
+			time.Sleep(1 * time.Second)
+		} else if opcion == "6" {
 			salir = true
 		} else {
 			fmt.Printf("Opción inválida. Ingrese una opción correcta.")
@@ -126,4 +144,57 @@ func addInstances() {
 		ejecutarQueriesArchivo("tablas/inserts.sql")
 		fmt.Printf("CONSUMOS AGREGADOS\n")
 	}
+}
+
+func addAutorizacionCompraSp() {
+	if !dbCreada {
+		fmt.Printf("Cree la base de datos, tablas y agregue instancias para agregar Sp Autorización de compra\n")
+	} else if !tablasCreadas {
+		fmt.Printf("Cree las tablas y agregue instancias para agregar Sp Autorización de compra\n")
+	} else if !instanciasAgregadas {
+		fmt.Printf("Agregue instancias para agregar Sp Autorización de compra\n")
+	} else {
+		ejecutarQueriesArchivo("tablas/autorizacionCompra.sql")
+		fmt.Printf("STORED PROCEDURE AUTORIZACION DE COMPRA AGREGADO\n")
+	}
+}
+
+func autorizarCompras() {
+	db, err := sql.Open(driverBaseDeDatos, stringConexion)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//tomamos las filas de tabla consumo
+	rows, err := db.Query(`SELECT * FROM consumo`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var c consumo
+	var autorizada bool
+
+	//recorremos los consumos
+	for rows.Next() {
+		err := rows.Scan(&c.id, &c.nrotarjeta, &c.codseguridad, &c.nrocomercio, &c.monto) //guardo en consumo los datos de la fila
+		if err != nil {
+			log.Fatal(err)
+		}
+		//ejecuta la stored procedure y guarda resultado en autorizada
+		err = db.QueryRow("SELECT autorizacionCompra($1, $2, $3, $4)", c.nrotarjeta, c.codseguridad, c.nrocomercio, c.monto).Scan(&autorizada)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if autorizada {
+			fmt.Printf("Consumo %v autorizado\n", c)
+		} else {
+			fmt.Printf("Consumo %v no autorizado\n", c)
+		}
+		time.Sleep(1 * time.Second)
+	}
+	//verifico si hubo error con las filas de la tabla consumo
+	if err = rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 }
