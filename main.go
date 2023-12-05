@@ -154,7 +154,7 @@ func addAutorizacionCompraSp() {
 	} else if !instanciasAgregadas {
 		fmt.Printf("Agregue instancias para agregar Sp Autorización de compra\n")
 	} else {
-		ejecutarQueriesArchivo("tablas/autorizacionCompra.sql")
+		ejecutarQueriesArchivo("storedProcedures-triggers/autorizacionCompra.sql")
 		fmt.Printf("STORED PROCEDURE AUTORIZACION DE COMPRA AGREGADO\n")
 	}
 }
